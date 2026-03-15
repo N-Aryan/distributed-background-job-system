@@ -1,0 +1,23 @@
+{
+  "name": "task-queue-worker",
+  "version": "1.0.0",
+  "description": "Distributed Task Queue Worker",
+  "main": "src/worker.js",
+  "scripts": {
+    "start": "node src/worker.js",
+    "dev": "nodemon src/worker.js"
+  },
+  "keywords": [
+    "task-queue",
+    "worker"
+  ],
+  "author": "Your Name",
+  "license": "MIT",
+  "dependencies": {
+    "amqplib": "^0.10.9",
+    "dotenv": "^17.2.3",
+    "pg": "^8.16.3",
+    "redis": "^5.10.0",
+    "winston": "^3.18.3"
+  }
+}

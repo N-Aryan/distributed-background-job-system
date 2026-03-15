@@ -1,0 +1,34 @@
+// api/src/config/database.js
+const { Pool } = require('pg');
+require('dotenv').config();
+
+const pool = new Pool({
+  host: process.env.DB_HOST,
+  port: process.env.DB_PORT,
+  database: process.env.DB_NAME,
+  user: process.env.DB_USER,
+  password: process.env.DB_PASSWORD,
+  max: process.env.DB_MAX_POOL || 20,
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 2000,
+});
+
+pool.on('connect', () => {
+  console.log('✅ Database connected');
+});
+
+pool.on('error', (err) => {
+  console.error('❌ Unexpected database error:', err);
+  process.exit(-1);
+});
+
+// Test connection
+pool.query('SELECT NOW()', (err, res) => {
+  if (err) {
+    console.error('❌ Database connection test failed:', err);
+  } else {
+    console.log('✅ Database connection test successful:', res.rows[0].now);
+  }
+});
+
+module.exports = pool;

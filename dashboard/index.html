@@ -1,0 +1,338 @@
+<!-- dashboard/index.html -->
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Task Queue Dashboard</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: #f5f7fa;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            color: #2c3e50;
+            margin-bottom: 30px;
+        }
+
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .metric-card {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .metric-card h3 {
+            color: #7f8c8d;
+            font-size: 14px;
+            margin-bottom: 10px;
+            text-transform: uppercase;
+        }
+
+        .metric-value {
+            font-size: 32px;
+            font-weight: bold;
+            color: #2c3e50;
+        }
+
+        .metric-card.high {
+            border-left: 4px solid #e74c3c;
+        }
+
+        .metric-card.medium {
+            border-left: 4px solid #f39c12;
+        }
+
+        .metric-card.low {
+            border-left: 4px solid #3498db;
+        }
+
+        .metric-card.success {
+            border-left: 4px solid #27ae60;
+        }
+
+        .tasks-section {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            margin-bottom: 20px;
+        }
+
+        .tasks-section h2 {
+            color: #2c3e50;
+            margin-bottom: 20px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th,
+        td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #ecf0f1;
+        }
+
+        th {
+            background: #f8f9fa;
+            font-weight: 600;
+            color: #7f8c8d;
+        }
+
+        .status-badge {
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .status-pending {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .status-processing {
+            background: #cce5ff;
+            color: #004085;
+        }
+
+        .status-completed {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .status-failed {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .status-retrying {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .priority-badge {
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .priority-high {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .priority-medium {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .priority-low {
+            background: #d1ecf1;
+            color: #0c5460;
+        }
+
+        .refresh-btn {
+            background: #3498db;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            margin-bottom: 20px;
+        }
+
+        .refresh-btn:hover {
+            background: #2980b9;
+        }
+
+        .auto-refresh {
+            margin-left: 10px;
+            color: #7f8c8d;
+            font-size: 14px;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #7f8c8d;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1>📊 Task Queue Dashboard</h1>
+
+        <button class="refresh-btn" onclick="loadDashboard()">🔄 Refresh</button>
+        <span class="auto-refresh">Auto-refresh: <span id="countdown">10</span>s</span>
+
+        <div class="metrics-grid" id="metrics-grid">
+            <div class="loading">Loading metrics...</div>
+        </div>
+
+        <div class="tasks-section">
+            <h2>Recent Tasks</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Type</th>
+                        <th>Priority</th>
+                        <th>Status</th>
+                        <th>Created</th>
+                        <th>Retries</th>
+                    </tr>
+                </thead>
+                <tbody id="tasks-table">
+                    <tr>
+                        <td colspan="6" class="loading">Loading tasks...</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = 'http://localhost:3000/api/v1';
+        let countdownInterval;
+        let countdown = 10;
+
+        async function loadDashboard() {
+            await Promise.all([
+                loadMetrics(),
+                loadTasks()
+            ]);
+            resetCountdown();
+        }
+
+        async function loadMetrics() {
+            try {
+                const response = await fetch(`${API_URL}/metrics`);
+                const data = await response.json();
+
+                const metricsGrid = document.getElementById('metrics-grid');
+
+                // Calculate totals
+                let totalPending = 0;
+                let totalProcessing = 0;
+                let totalCompleted = 0;
+                let totalFailed = 0;
+
+                data.data.taskStats.forEach(stat => {
+                    if (stat.status === 'pending') totalPending += parseInt(stat.count);
+                    if (stat.status === 'processing') totalProcessing += parseInt(stat.count);
+                    if (stat.status === 'completed') totalCompleted += parseInt(stat.count);
+                    if (stat.status === 'failed') totalFailed += parseInt(stat.count);
+                });
+
+                metricsGrid.innerHTML = `
+                    <div class="metric-card">
+                        <h3>Total Tasks</h3>
+                        <div class="metric-value">${data.data.totalTasks}</div>
+                    </div>
+                    <div class="metric-card high">
+                        <h3>Pending</h3>
+                        <div class="metric-value">${totalPending}</div>
+                    </div>
+                    <div class="metric-card medium">
+                        <h3>Processing</h3>
+                        <div class="metric-value">${totalProcessing}</div>
+                    </div>
+                    <div class="metric-card success">
+                        <h3>Completed</h3>
+                        <div class="metric-value">${totalCompleted}</div>
+                    </div>
+                    <div class="metric-card high">
+                        <h3>Failed</h3>
+                        <div class="metric-value">${totalFailed}</div>
+                    </div>
+                    <div class="metric-card">
+                        <h3>High Priority Queue</h3>
+                        <div class="metric-value">${data.data.queueStats.high?.submitted || 0}</div>
+                    </div>
+                `;
+            } catch (error) {
+                console.error('Error loading metrics:', error);
+            }
+        }
+
+        async function loadTasks() {
+            try {
+                const response = await fetch(`${API_URL}/tasks?limit=20`);
+                const data = await response.json();
+
+                const tasksTable = document.getElementById('tasks-table');
+
+                if (data.data.length === 0) {
+                    tasksTable.innerHTML = '<tr><td colspan="6">No tasks found</td></tr>';
+                    return;
+                }
+
+                tasksTable.innerHTML = data.data.map(task => `
+                    <tr>
+                        <td>${task.id.substring(0, 8)}...</td>
+<td>${task.type}</td>
+<td><span class="priority-badge priority-${task.priority}">${task.priority}</span></td>
+<td><span class="status-badge status-${task.status}">${task.status}</span></td>
+<td>${new Date(task.created_at).toLocaleString()}</td>
+<td>task.retrycount/{task.retry_count}/
+task.retryc​ount/{task.max_retries}
+</td>
+</tr>
+`).join('');
+            } catch (error) {
+                console.error('Error loading tasks:', error);
+            }
+        }
+
+        function resetCountdown() {
+            countdown = 10;
+            document.getElementById('countdown').textContent = countdown;
+
+            if (countdownInterval) {
+                clearInterval(countdownInterval);
+            }
+
+            countdownInterval = setInterval(() => {
+                countdown--;
+                document.getElementById('countdown').textContent = countdown;
+
+                if (countdown <= 0) {
+                    loadDashboard();
+                }
+            }, 1000);
+        }
+
+        // Initial load
+        loadDashboard();
+    </script>
+</body>
+
+</html>
